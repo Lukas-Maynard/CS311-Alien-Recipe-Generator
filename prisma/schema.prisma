@@ -3,21 +3,30 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql" // or "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
 }
 
 model Tag {
   id          Int          @id @default(autoincrement())
   name        String       @unique
-  ingredients Ingredient[] @relation("IngredientTags")
-  recipes     Recipe[]     @relation("RecipeTags")
+  ingredients IngredientTags[]
+  recipes     RecipeTags[]
 }
 
 model Ingredient {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-  tags Tag[]  @relation("IngredientTags")
+  id   Int              @id @default(autoincrement())
+  name String           @unique
+  tags IngredientTags[]
+}
+
+model IngredientTags {
+  ingredient_id Int
+  tag_id        Int
+  Ingredient    Ingredient @relation(fields: [ingredient_id], references: [id])
+  Tag           Tag        @relation(fields: [tag_id], references: [id])
+
+  @@id([ingredient_id, tag_id]) // Composite primary key
 }
 
 model CookingMethod {
@@ -31,11 +40,20 @@ model CookingStep {
 }
 
 model Recipe {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
+  id        Int         @id @default(autoincrement())
+  name      String      @unique
   image     String?
   steps     String
-  likes     Int      @default(0)
-  tags      Tag[]    @relation("RecipeTags")
-  createdAt DateTime @default(now())
+  likes     Int         @default(0)
+  tags      RecipeTags[]
+  createdAt DateTime    @default(now())
+}
+
+model RecipeTags {
+  recipe_id Int
+  tag_id    Int
+  Recipe    Recipe @relation(fields: [recipe_id], references: [id])
+  Tag       Tag    @relation(fields: [tag_id], references: [id])
+
+  @@id([recipe_id, tag_id]) // Composite primary key
 }

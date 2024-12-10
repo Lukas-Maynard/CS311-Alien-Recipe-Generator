@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding the SQLite database...');
+  console.log('Seeding the PostgreSQL database...');
 
   // Create Tags
   const spicy = await prisma.tag.create({ data: { name: 'Spicy' } });
@@ -11,17 +11,20 @@ async function main() {
 
   // Create Ingredients
   const chicken = await prisma.ingredient.create({
-    data: { 
-      name: 'Chicken', 
-      tags: { connect: [{ id: savory.id }, { id: spicy.id }] } 
-    },
+    data: { name: 'Chicken' },
   });
 
   const honey = await prisma.ingredient.create({
-    data: { 
-      name: 'Honey', 
-      tags: { connect: [{ id: sweet.id }] } 
-    },
+    data: { name: 'Honey' },
+  });
+
+  // Link Tags to Ingredients
+  await prisma.ingredientTags.createMany({
+    data: [
+      { ingredient_id: chicken.id, tag_id: savory.id },
+      { ingredient_id: chicken.id, tag_id: spicy.id },
+      { ingredient_id: honey.id, tag_id: sweet.id },
+    ],
   });
 
   // Create Cooking Methods
@@ -47,8 +50,15 @@ async function main() {
       name: 'Grilled Chicken with Honey Glaze',
       steps: 'Heat Chicken on grill. Brush with Honey while cooking.',
       likes: 10,
-      tags: { connect: [{ id: savory.id }, { id: sweet.id }] },
     },
+  });
+
+  // Link Tags to Recipes
+  await prisma.recipeTags.createMany({
+    data: [
+      { recipe_id: grilledChicken.id, tag_id: savory.id },
+      { recipe_id: grilledChicken.id, tag_id: sweet.id },
+    ],
   });
 
   console.log('Database seeded successfully!');
