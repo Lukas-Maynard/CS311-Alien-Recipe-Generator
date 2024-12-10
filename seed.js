@@ -1,9 +1,8 @@
-import { PrismaClient } from '@prisma/client';
-
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding the database...');
+  console.log('Seeding the SQLite database...');
 
   // Create Tags
   const spicy = await prisma.tag.create({ data: { name: 'Spicy' } });
