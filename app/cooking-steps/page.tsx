@@ -1,33 +1,50 @@
 'use client';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { supabase } from '@/supabaseClient';
 
 const CookingStepsPage = () => {
   const [cookingSteps, setCookingSteps] = useState<string[]>([]);
   const [newStep, setNewStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Fetch cooking steps from the API
   const fetchCookingSteps = async () => {
+    setError(null);
     try {
-      const { data } = await axios.get('/api/cooking-steps');
-      setCookingSteps(data);
-    } catch (error) {
-      setError('Error fetching cooking steps');
+      const { data, error } = await supabase.from('cooking_steps').select('template');
+      if (error) throw error;
+
+      const stepTemplates = data.map((step) => step.template);
+      setCookingSteps(stepTemplates);
+    } catch (err) {
+      console.error('Error fetching cooking steps:', err);
+      setError('Error fetching cooking steps.');
     }
   };
 
-  // Add a new cooking step
   const handleAddCookingStep = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStep.trim()) return;
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!newStep.trim()) {
+      setError('Cooking step template cannot be empty.');
+      return;
+    }
 
     try {
-      await axios.post('/api/cooking-steps', { template: newStep });
+      const { error } = await supabase
+        .from('cooking_steps')
+        .insert([{ template: newStep.trim() }]);
+
+      if (error) throw error;
+
+      setSuccessMessage('Cooking step added successfully!');
       setNewStep('');
-      fetchCookingSteps(); // Refresh the list
-    } catch (error) {
-      setError('Error adding new cooking step');
+      fetchCookingSteps();
+    } catch (err) {
+      console.error('Error adding new cooking step:', err);
+      setError('Error adding new cooking step.');
     }
   };
 
@@ -40,6 +57,7 @@ const CookingStepsPage = () => {
       <h1>Cooking Steps</h1>
       
       {error && <p style={{ color: 'red' }}>{error}</p>}
+      {successMessage && <p style={{ color: 'green' }}>{successMessage}</p>}
       
       <h2>Add New Cooking Step</h2>
       <form onSubmit={handleAddCookingStep}>

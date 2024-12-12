@@ -1,5 +1,6 @@
-"use client";
+'use client';
 import React, { useState } from 'react';
+import { supabase } from '@/supabaseClient';
 
 type Recipe = {
   id: number;
@@ -14,21 +15,42 @@ export default function SearchRecipesPage() {
   const [query, setQuery] = useState<string>('');
   const [tagFilter, setTagFilter] = useState<string>('');
   const [results, setResults] = useState<Recipe[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setError(null);
+
     try {
-      // Fetch recipes based on the query and tagFilter
-      const res = await fetch(`/api/search-recipes?name=${query}&tag=${tagFilter}`);
-      if (res.ok) {
-        const data: Recipe[] = await res.json();
-        setResults(data);
-      } else {
-        console.error('Error fetching recipes:', await res.text());
+      let queryBuilder = supabase.from('recipes').select(`
+        id,
+        name,
+        image,
+        steps,
+        likes,
+        tags (name)
+      `);
+
+      if (query.trim()) {
+        queryBuilder = queryBuilder.ilike('name', `%${query}%`);
       }
-    } catch (error) {
-      console.error('Error:', error);
+
+      if (tagFilter.trim()) {
+        queryBuilder = queryBuilder.contains('tags', [tagFilter]);
+      }
+
+      const { data, error } = await queryBuilder;
+      if (error) throw error;
+
+      const formattedData = data.map((recipe) => ({
+        ...recipe,
+        tags: recipe.tags.map((tag) => tag.name),
+      }));
+
+      setResults(formattedData);
+    } catch (err) {
+      console.error('Error searching recipes:', err);
+      setError('Failed to search recipes. Please try again.');
     }
   };
 
@@ -58,6 +80,7 @@ export default function SearchRecipesPage() {
         </div>
         <button type="submit">Search</button>
       </form>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
       <div className="results">
         {results.length > 0 ? (
           <ul className="recipe-list">
@@ -65,6 +88,7 @@ export default function SearchRecipesPage() {
               <li key={recipe.id} className="recipe-item">
                 <h2>{recipe.name}</h2>
                 {recipe.image && (
+                  // in database im using sample images :)
                   <img src={recipe.image} alt={recipe.name} className="recipe-image" />
                 )}
                 <p>{recipe.steps}</p>

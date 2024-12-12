@@ -1,93 +1,100 @@
 'use client';
-
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { supabase } from '@/supabaseClient';
 
-interface Tag {
+// this file needs a lot of help...
+
+type Tag = {
   id: number;
   name: string;
-}
+};
 
-const GenerateRecipePage: React.FC = () => {
+type Ingredient = {
+  id: number;
+  name: string;
+};
+
+type CookingMethod = {
+  id: number;
+  name: string;
+};
+
+type RecipeStep = {
+  ingredient: string;
+  method: string;
+  step: string;
+};
+
+export default function GenerateRecipePage() {
   const [tags, setTags] = useState<Tag[]>([]);
-  const [generatedSteps, setGeneratedSteps] = useState<string[]>([]);
-  const { register, handleSubmit, watch, reset } = useForm();
-  const [error, setError] = useState(null);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [cookingMethods, setCookingMethods] = useState<CookingMethod[]>([]);
+  const [selectedTags, setSelectedTags] = useState<number[]>([]);
+  const [numSteps, setNumSteps] = useState<number>(3); // Default to 3 steps
+  const [generatedRecipe, setGeneratedRecipe] = useState<RecipeStep[]>([]);
 
   useEffect(() => {
-    async function fetchTags() {
+    async function fetchData() {
       try {
-        const response = await fetch('/api/tags');
-        const contentType = response.headers.get('Content-Type');
-
-        if (response.ok && contentType?.includes('application/json')) {
-          const data = await response.json();
-          setTags(data);
-        } else {
-          const errorText = await response.text();
-          console.error('Error: Expected JSON, but got:', errorText);
-          // setError('Failed to fetch tags');
-        }
+        const { data: tagsData } = await supabase.from('tags').select('*');
+        const { data: ingredientsData } = await supabase.from('ingredients').select('*');
+        const { data: methodsData } = await supabase.from('cooking_methods').select('*');
+        
+        // unable to set why???
+        setTags(tagsData);
+        setIngredients(ingredientsData);
+        setCookingMethods(methodsData);
       } catch (error) {
-        console.error('Error fetching tags:', error);
-        // setError('Failed to fetch tags');
+        console.error('Error fetching data:', error);
       }
     }
-    fetchTags();
+
+    fetchData();
   }, []);
 
-  const onSubmit = async (data: any) => {
-    const { selectedTags, stepsCount } = data;
+  const handleGenerateRecipe = (e: React.FormEvent) => {
+    e.preventDefault();
 
-    // Generate recipe steps
-    const generated = Array.from({ length: stepsCount }, (_, i) => {
-      const randomTag = tags.find(tag => selectedTags.includes(tag.id.toString()))?.name || 'Unknown';
-      return `Step ${i + 1}: Use something ${randomTag.toLowerCase()} here!`;
-    });
-
-    setGeneratedSteps(generated);
-  };
-
-  const saveRecipe = async (data: any) => {
-    try {
-      const formData = new FormData();
-      formData.append('name', data.name);
-      formData.append('image', data.image[0]);
-      formData.append('steps', JSON.stringify(generatedSteps));
-      formData.append('tags', JSON.stringify(data.selectedTags));
-
-      const res = await fetch('/api/recipes', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        alert('Recipe saved successfully!');
-        reset();
-        setGeneratedSteps([]);
-      } else {
-        alert('Failed to save the recipe.');
-      }
-    } catch (error) {
-      console.error('Error saving recipe:', error);
+    if (selectedTags.length < 2 || selectedTags.length > 5) {
+      alert('Please select 2-5 tags.');
+      return;
     }
+
+    const recipeSteps: RecipeStep[] = [];
+    
+    // gen steps
+    for (let i = 0; i < numSteps; i++) {
+      const randomIngredient = ingredients[i % ingredients.length];
+      const randomMethod = cookingMethods[i % cookingMethods.length];
+      const step = `Step ${i + 1}: Use ${randomIngredient.name} and apply the method: ${randomMethod.name}`;
+
+      recipeSteps.push({
+        ingredient: randomIngredient.name,
+        method: randomMethod.name,
+        step,
+      });
+    }
+
+    setGeneratedRecipe(recipeSteps);
   };
 
   return (
-    <div className="generate-recipe-page">
+    <div>
       <h1>Generate Recipe</h1>
-
-      {/* Recipe Generation Form */}
-      <form onSubmit={handleSubmit(onSubmit)}>
+      
+      <form onSubmit={handleGenerateRecipe}>
         <div>
-          <label htmlFor="tags">Select Tags:</label>
+          <label htmlFor="tags">Select Tags (2-5)(Ctrl click to select multiple):</label>
           <select
             id="tags"
             multiple
-            {...register('selectedTags', { required: true })}
-            className="tags-dropdown"
+            value={selectedTags}
+            onChange={(e) => {
+              const selected = Array.from(e.target.selectedOptions, (option) => parseInt(option.value));
+              setSelectedTags(selected);
+            }}
           >
-            {tags.map(tag => (
+            {tags.map((tag) => (
               <option key={tag.id} value={tag.id}>
                 {tag.name}
               </option>
@@ -96,60 +103,40 @@ const GenerateRecipePage: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="stepsCount">Number of Steps:</label>
+          <label htmlFor="numSteps">Number of Steps:</label>
           <input
-            id="stepsCount"
             type="number"
-            {...register('stepsCount', { required: true, min: 1, max: 10 })}
-            className="steps-input"
+            id="numSteps"
+            min="1"
+            max="10"
+            value={numSteps}
+            onChange={(e) => setNumSteps(Number(e.target.value))}
           />
         </div>
 
-        <button type="submit" className="generate-button">
-          Generate Recipe
-        </button>
+        <button type="submit">Generate Recipe</button>
       </form>
 
-      {/* Generated Recipe Display */}
-      {generatedSteps.length > 0 && (
+      {generatedRecipe.length > 0 && (
         <div className="generated-recipe">
-          <h2>Generated Recipe Steps:</h2>
+          <h2>Generated Recipe</h2>
           <ol>
-            {generatedSteps.map((step, index) => (
-              <li key={index}>{step}</li>
+            {generatedRecipe.map((step, index) => (
+              <li key={index}>{step.step}</li>
             ))}
           </ol>
-
-          {/* Recipe Save Form */}
-          <form onSubmit={handleSubmit(saveRecipe)}>
-            <div>
-              <label htmlFor="recipeName">Recipe Name:</label>
-              <input
-                id="recipeName"
-                type="text"
-                {...register('name', { required: true })}
-                className="name-input"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="recipeImage">Upload Recipe Image:</label>
-              <input
-                id="recipeImage"
-                type="file"
-                {...register('image', { required: true })}
-                className="image-input"
-              />
-            </div>
-
-            <button type="submit" className="save-button">
-              Save Recipe
-            </button>
-          </form>
         </div>
       )}
+      
+      <style jsx>{`
+        .generated-recipe ol {
+          list-style: decimal;
+          padding-left: 20px;
+        }
+        .generated-recipe {
+          margin-top: 2rem;
+        }
+      `}</style>
     </div>
   );
-};
-
-export default GenerateRecipePage;
+}

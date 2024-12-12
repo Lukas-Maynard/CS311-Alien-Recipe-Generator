@@ -1,84 +1,62 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-
-type Tag = {
-  id: number;
-  name: string;
-};
-
-type Ingredient = {
-  id: number;
-  name: string;
-  tags: string[];
-};
+import { supabase } from '@/supabaseClient';
 
 export default function IngredientsPage() {
+  const [ingredients, setIngredients] = useState<string[]>([]);
   const [ingredientName, setIngredientName] = useState<string>('');
-  const [selectedTags, setSelectedTags] = useState<number[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch existing tags and ingredients
-    const fetchData = async () => {
+    const fetchIngredients = async () => {
       try {
-        const tagsRes = await fetch('/api/tags');
-        const ingredientsRes = await fetch('/api/ingredients');
-        const tagsData: Tag[] = await tagsRes.json();
-        const ingredientsData: Ingredient[] = await ingredientsRes.json();
-
-        setTags(tagsData);
-        setIngredients(ingredientsData);
+        const { data, error } = await supabase.from('ingredients').select('name');
+        if (error) throw error;
+        const ingredientNames = data.map((ingredient) => ingredient.name);
+        setIngredients(ingredientNames);
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error fetching ingredients:', err);
+        setError('Failed to fetch ingredients.');
       }
     };
 
-    fetchData();
+    fetchIngredients();
   }, []);
 
   const handleAddIngredient = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
 
-    if (!ingredientName || selectedTags.length === 0) {
-      setError('Ingredient name and at least one tag are required.');
+    if (!ingredientName.trim()) {
+      setError('Ingredient name cannot be empty.');
       return;
     }
 
     try {
-      const res = await fetch('/api/ingredients', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: ingredientName,
-          tagIds: selectedTags,
-        }),
-      });
+      const { data, error } = await supabase
+        .from('ingredients')
+        .insert([{ name: ingredientName.trim() }]);
 
-      if (res.ok) {
-        const newIngredient: Ingredient = await res.json();
-        setIngredients((prev) => [...prev, newIngredient]);
-        setIngredientName('');
-        setSelectedTags([]);
-      } else {
-        setError('Failed to add ingredient.');
-      }
+      if (error) throw error;
+
+      setIngredients((prev) => [...prev, ingredientName.trim()]);
+      setIngredientName('');
+      setSuccessMessage('Ingredient added successfully!');
     } catch (err) {
       console.error('Error adding ingredient:', err);
-      setError('An unexpected error occurred.');
+      setError('Failed to add ingredient. Ensure it has a unique name.');
     }
   };
 
   return (
     <div>
       <h1>Ingredients</h1>
+
       <form onSubmit={handleAddIngredient} className="ingredient-form">
         <div>
-          <label htmlFor="ingredientName">Ingredient Name:</label>
+          <label htmlFor="ingredientName">Add New Ingredient:</label>
           <input
             id="ingredientName"
             type="text"
@@ -87,39 +65,16 @@ export default function IngredientsPage() {
             placeholder="e.g., Chicken"
           />
         </div>
-        <div>
-          <label htmlFor="tags">Select Tags:</label>
-          <select
-            id="tags"
-            multiple
-            value={selectedTags}
-            onChange={(e) =>
-              setSelectedTags(
-                Array.from(e.target.selectedOptions, (option) =>
-                  parseInt(option.value)
-                )
-              )
-            }
-          >
-            {tags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
-              </option>
-            ))}
-          </select>
-        </div>
         <button type="submit">Add Ingredient</button>
         {error && <p className="error">{error}</p>}
+        {successMessage && <p className="success">{successMessage}</p>}
       </form>
 
       <div className="ingredient-list">
         <h2>Existing Ingredients</h2>
         <ul>
-          {ingredients.map((ingredient) => (
-            <li key={ingredient.id}>
-              <strong>{ingredient.name}</strong> - Tags:{' '}
-              {ingredient.tags.join(', ')}
-            </li>
+          {ingredients.map((name, index) => (
+            <li key={index}>{name}</li>
           ))}
         </ul>
       </div>
@@ -136,10 +91,14 @@ export default function IngredientsPage() {
           padding: 0;
         }
         .ingredient-list li {
-          margin-bottom: 1rem;
+          margin-bottom: 0.5rem;
         }
         .error {
           color: red;
+          margin-top: 1rem;
+        }
+        .success {
+          color: green;
           margin-top: 1rem;
         }
       `}</style>
